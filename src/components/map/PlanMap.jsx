@@ -7152,7 +7152,7 @@ const PLAN_BG = '#2B2B2B';
           before the incoming one measures — `inset` goes straight to
           the new width instead of dipping through zero and re-aiming
           the camera twice. */}
-      {panel === 'info' && (
+      {/* {panel === 'info' && (
         <InfoPanel site={site} onWidth={setPanelInset} onClose={() => setPanel(null)} />
       )}
       {panel === 'gallery' && (
@@ -7160,7 +7160,7 @@ const PLAN_BG = '#2B2B2B';
 )}
       {panel === 'brochures' && (
         <BrochuresPanel onWidth={setPanelInset} onClose={() => setPanel(null)} />
-      )}
+      )} */}
 
       {/* Zoom, on screen, while a plot is raised.
 
