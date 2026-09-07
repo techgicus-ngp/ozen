@@ -292,7 +292,7 @@ export default function ProsperaCardsPreview() {
   return (
     <div className="ps-shell">
       <header className="ps-header">
-        <span className="ps-eyebrow">Prospera Saraswati</span>
+        <span className="ps-eyebrow">Ozen</span>
         <h1>Site records</h1>
         <p>Quotations issued and layout maps on file for the project.</p>
       </header>

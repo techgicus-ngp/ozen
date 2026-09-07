@@ -3516,7 +3516,6 @@
 
 
 
-
 import React, {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
@@ -3541,21 +3540,6 @@ import {
   ACCENT, CANVAS, HAIR, LIFT_H, MAX_TILT, MONO,
   SEL_STROKE, SELECTED_FILL, WALL_EDGE, WALL_FILL,
 } from '../../theme/tokens';
- import { watchGallery } from '../../services/GalleryService';
-/* The brochure that ships with the build, rather than one uploaded per
-   project. Imported rather than written as a string path: the bundler
-   then fingerprints it, copies it into the build output, and fails
-   LOUDLY at build time if the file is missing — a bare
-   '/assets/brochure.pdf' is only discovered to be wrong when a customer
-   taps it and gets a 404 in front of the buyer.
-
-   Put the file at src/assets/brochure.pdf. Vite treats an unknown
-   extension as an asset and hands back its URL, so nothing else is
-   needed. If your setup refuses to import PDFs, drop the file in
-   public/assets/ instead and swap this line for
-   `const BROCHURE = '/assets/brochure.pdf';` — everything downstream is
-   the same either way. */
-import BROCHURE from '../../assets/broucher.pdf';
 
 import '../../styles/home.css';
 
@@ -3595,9 +3579,8 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
    Space taken by chrome is DECLARED, not framed around: pass `reserve`
    ({ left, right, top, bottom } in screen px) and flyTo aims off centre
-   by that much. The three site panels below declare their own share the
-   same way. The toolbar's fit button gets fitPlan back through `fitRef`
-   rather than reimplementing it. */
+   by that much. The toolbar's fit button gets fitPlan back through
+   `fitRef` rather than reimplementing it. */
 
 /* ── TWO CAMERAS, ONE AT A TIME ──────────────────────────────────────
    A PICKED PLOT: the map CONTAINER is CSS-transformed by camRef, which
@@ -3984,818 +3967,6 @@ function Compass({ mapRef, camRef, selectedRef, onReset }) {
   );
 }
 
-/* ── INFO · GALLERY · BROCHURES ──────────────────────────────────────
-   Everything about the PROJECT rather than about one plot: the address
-   and khasra numbers, photographs of the site, and the PDFs a customer
-   is going to be asked to take home.
-
-   THREE SEPARATE PANELS, one per rail button, with no tab strip and
-   nothing shared between them. They are written out three times on
-   purpose: each one owns its own box, its own measuring, its own
-   header and its own empty state, so changing how the gallery lays out
-   its thumbnails cannot move the brochure list, and adding a filter or
-   a search to one is a change to one function.
-
-   ONE AT A TIME, all the same. All three want the same edge of the
-   screen — the right on a desktop, the bottom on a phone — and so does
-   the filter panel, so opening one closes whichever was up. Pressing
-   the button of the one already open closes it.
-
-   EACH DECLARES ITS SHARE OF THE SCREEN through onWidth rather than
-   floating over the map. That figure joins `reserve` in the inset
-   below, so a pick is framed in the glass that is actually left;
-   without it, opening a panel on a desktop centres the picked plot
-   behind it.
-
-   They share .site-panel in home.css for one thing only: the
-   desktop/phone breakpoint, which decides whether they come in from the
-   right or up from the bottom. That stays in one place rather than
-   three. */
-/* ── THE THREE MARKS ─────────────────────────────────────────────────
-   Drawn here rather than imported: three glyphs is not worth an icon
-   package in a bundle a customer loads over a site-office connection.
-
-   currentColor throughout, so the active rail button flips the mark to
-   CANVAS along with its own text and nothing has to be told twice. A
-   24-unit viewBox with a 1.6 stroke is the same weight as the compass
-   needle, which is the only other line art on this screen.
-
-   THE RAIL KEEPS A WORD UNDER EACH MARK. A picture-only rail assumes
-   the salesperson has used the app before; the first thing anyone does
-   in front of a customer is look for the word "brochure". `short` is
-   what fits a 44 px button at 8 px — "Brochures" does not. */
-const ICONS = {
-  info: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5" />
-      <path d="M12 7.6v.9" />
-    </>
-  ),
-  gallery: (
-    <>
-      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-      <circle cx="8.5" cy="9.6" r="1.6" />
-      <path d="M4 16.6l4.4-4 3.6 3.1 3-2.6 4 3.9" />
-    </>
-  ),
-  brochures: (
-    <>
-      <path d="M6 3.5h7.6L18.5 8.4V20.5H6z" />
-      <path d="M13.4 3.5v5h5.1" />
-      <path d="M9 13.5h6M9 16.8h4" />
-    </>
-  ),
-};
-
-function PanelIcon({ name, size = 18 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ display: 'block', flex: '0 0 auto' }}
-      aria-hidden="true"
-      focusable="false"
-    >
-      {ICONS[name]}
-    </svg>
-  );
-}
-
-const PANELS = [
-  { k: 'info', label: 'Info', short: 'Info' },
-  { k: 'gallery', label: 'Gallery', short: 'Photos' },
-  { k: 'brochures', label: 'Brochures', short: 'Brochure' },
-];
-
-/* ── THE LAUNCH NOTICE ───────────────────────────────────────────────
-   The one piece of SELLING copy in the app, and the reason the Info
-   panel is worth opening in front of a customer at all: what the
-   project is, what it is near, and why now.
-
-   HELD HERE AS DATA, NOT AS A PARAGRAPH, for two reasons. The lines are
-   read out loud off the screen by a salesperson, so each one has to
-   stand on its own at a glance — a wrapped paragraph on a phone buries
-   the metro distance in the middle of a sentence. And when the next
-   layout launches, this becomes `site.launch` from Firestore with no
-   change to what is drawn: the shape below is the shape that field
-   should take.
-
-   `site.launch` ALREADY WINS if the project carries one, so a second
-   project can override this without touching the file. Only the
-   fallback is hard-coded, and only because Prospera is the launch that
-   is live today.
-
-   The Hinglish is deliberate and stays as the client wrote it — it is
-   how the site office actually speaks to buyers in Nagpur, and
-   translating it into English would make the panel read like a
-   brochure written for someone else. */
-const LAUNCH = {
-  title: '🚀 NEW LAUNCH – PROSPERA • SARASWATI 🚀',
-  tagline: '✨ A New Address. A New Opportunity.',
-  points: [
-    '📍 Prime Location – Mauza Dongargaon',
-    '🏫 Wainganga Engineering College ke bilkul paas',
-    '🛣️ 100 Ft Road se connected',
-    '🚇 Dongargaon Metro Station – only 1.5 KM',
-    '🛣️ Wardha Road – just 500 Mtr',
-    '📈 Excellent connectivity + strong future growth potential',
-  ],
-  banner: '🔥 NEW LAYOUT | NEW LAUNCH | PREMIUM LOCATION',
-  body: [
-    'Aisi location mein early entry ka fayda sabse zyada hota hai.',
-    'Jaldi aaiye, apni preferred plot/location select kijiye aur best opportunity secure kijiye. ⏳',
-  ],
-  slogan: '💥 “Jaldi Aao, Best Pao!”',
-  kicker: 'Aaj ka smart decision = Kal ka strong appreciation potential 📈',
-  cta: '📞 Site Visit & Booking ke liye abhi call/message karein.',
-  note: 'Limited premium locations available!',
-  sign: 'Prospera • Saraswati — Dongargaon',
-};
-
-/* Drawn above the address rows, because it is the thing the panel was
-   opened for; the khasra numbers are what someone checks afterwards.
-
-   The emoji are LEFT IN THE STRING rather than pulled out into their
-   own column: they are the client's own punctuation, they carry the
-   sense on their own, and an aria-hidden icon column would put them out
-   of order for a screen reader for no gain to anyone else. */
-function LaunchNote({ launch, sheet }) {
-  if (!launch) return null;
-  const line = { margin: '0 0 6px' };
-
-  return (
-    <section
-      style={{
-        border: `1px solid ${ACCENT}`,
-        borderRadius: 12,
-        padding: sheet ? '12px 12px 14px' : '14px 14px 16px',
-        marginBottom: 16,
-        /* a tint of the accent rather than a fill: the panel is already
-           dark and a solid ACCENT block behind this much text is
-           unreadable on a phone in daylight */
-        background: 'rgba(255,255,255,0.04)',
-      }}
-    >
-      {launch.title && (
-        <h2 style={{
-          font: `700 ${sheet ? 14 : 15}px/1.45 ${MONO}`,
-          color: ACCENT, margin: '0 0 4px',
-        }}>
-          {launch.title}
-        </h2>
-      )}
-
-      {launch.tagline && (
-        <p style={{ ...line, opacity: 0.85 }}>{launch.tagline}</p>
-      )}
-
-      {!!(launch.points || []).length && (
-        <ul style={{
-          listStyle: 'none', margin: '10px 0 12px', padding: 0,
-          display: 'grid', gap: 6,
-        }}>
-          {launch.points.map((p) => (
-            <li key={p} style={{ lineHeight: 1.5 }}>{p}</li>
-          ))}
-        </ul>
-      )}
-
-      {launch.banner && (
-        <p style={{
-          ...line,
-          font: `600 ${sheet ? 12 : 13}px/1.5 ${MONO}`,
-          color: ACCENT,
-          paddingTop: 10,
-          borderTop: `1px solid ${HAIR}`,
-        }}>
-          {launch.banner}
-        </p>
-      )}
-
-      {(launch.body || []).map((b) => (
-        <p key={b} style={{ ...line, opacity: 0.85 }}>{b}</p>
-      ))}
-
-      {launch.slogan && (
-        <p style={{
-          ...line, marginTop: 10,
-          font: `700 ${sheet ? 14 : 15}px/1.4 ${MONO}`,
-        }}>
-          {launch.slogan}
-        </p>
-      )}
-
-      {launch.kicker && (
-        <p style={{ ...line, opacity: 0.85 }}>{launch.kicker}</p>
-      )}
-
-      {launch.cta && (
-        <p style={{ ...line, marginTop: 10 }}>{launch.cta}</p>
-      )}
-
-      {launch.note && (
-        <p style={{ ...line, opacity: 0.6 }}>{launch.note}</p>
-      )}
-
-      {launch.sign && (
-        <p style={{
-          margin: '10px 0 0',
-          font: `600 12px/1.5 ${MONO}`,
-          color: ACCENT,
-        }}>
-          {launch.sign}
-        </p>
-      )}
-    </section>
-  );
-}
-
-/* ── WHICH EDGE, AND HOW BIG ─────────────────────────────────────────
-   The three panels are laid out from JS rather than from a media query,
-   for one reason: they have to REPORT their footprint back to the map
-   through onWidth, and a CSS breakpoint the JS can't see means the
-   panel moves to the bottom of a phone while pickFrame is still
-   reserving screen on the right. Measuring what CSS did afterwards
-   works — but only from the frame after, and that frame is the one the
-   customer sees.
-
-   These inline styles therefore OVERRIDE .site-panel's own geometry.
-   Whatever position/width/inset rules that class still carries in
-   home.css are now dead; delete them there rather than leaving two
-   places that both think they own the layout.
-
-   PHONE — a sheet on the bottom edge, full width. Capped by a fraction
-   of the height we ACTUALLY have, not by a fixed vh: a phone in
-   landscape is about 380 px tall, and 60vh of that is a letterbox with
-   two rows in it. Under 520 px tall the sheet is allowed most of the
-   screen, because there is nothing else worth seeing behind it.
-
-   TABLET AND DESKTOP — a drawer on the right, floor to ceiling, held
-   clear of the logo header by FIT_PAD.top. Width is a share of the
-   window with a ceiling, so a 27" monitor gets a readable column rather
-   than a third of a metre of brochure list.
-
-   Everything else — the safe areas, the scroll containment, the type —
-   is the same on every device. */
-const PANEL_GAP = 12;
-
-/* innerWidth AND innerHeight, kept current. The height matters as much
-   as the width here: rotating a phone changes which of the two sheet
-   caps applies, and nothing else in this file would tell us. */
-const readViewport = () => ({
-  w: typeof window === 'undefined' ? 1024 : window.innerWidth,
-  h: typeof window === 'undefined' ? 768 : window.innerHeight,
-});
-
-const useViewport = () => {
-  const [vp, setVp] = useState(readViewport);
-  useEffect(() => {
-    const on = () => setVp(readViewport());
-    window.addEventListener('resize', on);
-    window.addEventListener('orientationchange', on);
-    /* the address bar sliding away changes the height without changing
-       the window's — same reason the map watches this */
-    const vv = window.visualViewport;
-    if (vv) vv.addEventListener('resize', on);
-    return () => {
-      window.removeEventListener('resize', on);
-      window.removeEventListener('orientationchange', on);
-      if (vv) vv.removeEventListener('resize', on);
-    };
-  }, []);
-  return vp;
-};
-
-const isSheet = (vp) => vp.w < NARROW_PX;
-
-/* The outer box. Same shell for all three so they can't drift apart on
-   one device and not another; what goes inside is each panel's own. */
-const panelBox = (vp) => {
-  const base = {
-    position: 'absolute', zIndex: 7,
-    background: CANVAS, border: `1px solid ${HAIR}`,
-    color: '#E7E1D5', font: `400 13px/1.6 ${MONO}`,
-    display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    /* the map's own gesture handlers listen on the document in the
-       capture phase; without this a scroll inside the panel also turns
-       the camera underneath it */
-    touchAction: 'pan-y',
-  };
-
-  if (isSheet(vp)) {
-    return {
-      ...base,
-      left: 0, right: 0, bottom: 0, top: 'auto',
-      width: 'auto',
-      maxHeight: Math.round(Math.min(vp.h * (vp.h < 520 ? 0.86 : 0.6), 560)),
-      borderRadius: '16px 16px 0 0',
-      borderBottom: 'none',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-    };
-  }
-
-  return {
-    ...base,
-    top: FIT_PAD.top,
-    bottom: PANEL_GAP,
-    right: `calc(${PANEL_GAP}px + env(safe-area-inset-right, 0px))`,
-    left: 'auto',
-    width: vp.w < TABLET_PX
-      ? Math.round(Math.min(340, vp.w * 0.45))
-      : Math.round(Math.min(400, vp.w * 0.32)),
-    borderRadius: 14,
-  };
-};
-
-/* The scrolling body. overscrollBehavior is not cosmetic: without it,
-   scrolling past the end of a list on iOS carries on into the page
-   behind and drags the whole map with it. */
-const panelBody = (vp) => ({
-  overflow: 'auto',
-  WebkitOverflowScrolling: 'touch',
-  overscrollBehavior: 'contain',
-  padding: isSheet(vp) ? '12px 16px 16px' : 16,
-  flex: 1,
-});
-
-/* What the panel takes off the map, in the direction it took it. The
-   gap goes in so the plot clears the panel's edge rather than touching
-   it. Read straight off the window rather than from the hook's copy:
-   the ResizeObserver can fire before the hook's own listener has
-   re-rendered, and this has to describe the box as it was actually laid
-   out in that frame. */
-const panelFootprint = (el) => (isSheet(readViewport())
-  ? { bottom: el.offsetHeight + PANEL_GAP }
-  : { right: el.offsetWidth + PANEL_GAP });
-
-/* The grab bar on a phone: the thing that says a sheet can be pushed
-   down. Decoration on a desktop drawer, so it isn't drawn there. */
-function SheetGrip() {
-  return (
-    <div style={{
-      width: 36, height: 4, borderRadius: 2, background: HAIR,
-      margin: '8px auto 0', flex: '0 0 auto',
-    }} />
-  );
-}
-
-/* ── INFO ────────────────────────────────────────────────────────────
-   The project on paper: the launch notice, then the address, khasra
-   numbers, sanctioning body, whatever `site.info.rows` carries. Rows
-   are PAIRS, not an object, so the order on screen is the order the
-   client gave — an object's key order is not something to hang a
-   customer-facing document on.
-
-   THE LAUNCH NOTICE COMES FIRST and the rows underneath it, because the
-   panel is opened in front of a buyer to sell the location and only
-   afterwards to check a khasra number. `site.launch` overrides the
-   built-in LAUNCH; pass `launch: null` on a project that has none and
-   the panel is just the rows again.
-
-   ON A PHONE THE ROWS STACK, label above value: a 110 px label column
-   against a 360 px screen leaves every value wrapping to three lines.
-   On anything wider they sit side by side and scan as a table. */
-// function InfoPanel({ site, onWidth, onClose }) {
-//   const boxRef = useRef(null);
-//   const vp = useViewport();
-//   const sheet = isSheet(vp);
-
-//   useEffect(() => {
-//     const el = boxRef.current;
-//     if (!el) return undefined;
-//     const report = () => onWidth(panelFootprint(el));
-//     report();
-
-//     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
-//     if (ro) ro.observe(el);
-//     window.addEventListener('resize', report);
-//     window.addEventListener('orientationchange', report);
-//     return () => {
-//       if (ro) ro.disconnect();
-//       window.removeEventListener('resize', report);
-//       window.removeEventListener('orientationchange', report);
-//       onWidth(null);   // hand the screen back on the way out
-//     };
-//   }, [onWidth]);
-
-//   const info = site?.info || {};
-//   const rows = info.rows || [];
-
-//   /* undefined means "the project didn't say" and gets the built-in
-//      notice; an explicit null means "this project has none" and gets
-//      nothing. `=== undefined` rather than `||` is what keeps those two
-//      apart. */
-//   const launch = site?.launch === undefined ? LAUNCH : site.launch;
-
-//   return (
-//     <div
-//       ref={boxRef}
-//       className="site-panel"
-//       onPointerDown={(e) => e.stopPropagation()}
-//       style={panelBox(vp)}
-//     >
-//       {sheet && <SheetGrip />}
-
-//       <div style={{
-//         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-//         borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
-//       }}>
-//         <span style={{
-//           display: 'flex', alignItems: 'center', gap: 8,
-//           font: `500 13px/1 ${MONO}`, opacity: 0.75,
-//         }}>
-//           <PanelIcon name="info" size={16} />
-//           Info
-//         </span>
-//         <button
-//           type="button"
-//           onClick={onClose}
-//           title="Close"
-//           aria-label="Close"
-//           style={{
-//             width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
-//             border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
-//             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-//             WebkitAppearance: 'none', appearance: 'none',
-//           }}
-//         >
-//           ×
-//         </button>
-//       </div>
-
-//       <div style={panelBody(vp)}>
-//         <LaunchNote launch={launch} sheet={sheet} />
-
-//         {info.title && (
-//           <div style={{
-//             font: `600 ${sheet ? 15 : 16}px/1.4 ${MONO}`, marginBottom: 12,
-//           }}>
-//             {info.title}
-//           </div>
-//         )}
-//         {rows.map(([k, v]) => (
-//           <div
-//             key={k}
-//             style={{
-//               display: 'flex',
-//               flexDirection: sheet ? 'column' : 'row',
-//               gap: sheet ? 2 : 12,
-//               padding: '8px 0',
-//               borderBottom: `1px solid ${HAIR}`,
-//             }}
-//           >
-//             <span style={{ opacity: 0.6, minWidth: sheet ? 0 : 110 }}>{k}</span>
-//             <span style={{ wordBreak: 'break-word' }}>{v}</span>
-//           </div>
-//         ))}
-//         {info.note && <p style={{ marginTop: 14, opacity: 0.85 }}>{info.note}</p>}
-//         {!launch && !info.title && !rows.length && !info.note && (
-//           <p style={{ opacity: 0.6 }}>Site details haven’t been added yet.</p>
-//         )}
-//       </div>
-//     </div>
-//   );
-// }
-
-/* ── GALLERY ─────────────────────────────────────────────────────────
-   Photographs of the ground.
-
-   Tapping one opens the full image in a new tab rather than in a
-   lightbox of our own, so the browser's own pinch-zoom does the work. A
-   customer wants to zoom into the approach road, and a homemade viewer
-   would have to reimplement that badly on the one device it matters on.
-
-   THE GRID IS AUTO-FILL, not a column count, so it reflows on its own
-   between a phone sheet and a 400 px drawer without either being told
-   about the other. Only the minimum tile changes: 104 px gives three
-   across a 360 px phone, 140 px keeps a drawer thumbnail big enough to
-   tell two plots apart. */
-/* GalleryPanel — read-only, live.
- 
-   Uploading and deleting stay in the Flutter admin app; this panel just
-   watches the same collection and draws what is there. Add to the top
-   of the file this lives in:
- 
-     import { watchGallery } from '../../services/Galleryservice';
- 
-   (plus useMemo on the existing react import).
- 
-   With no `mapId` it falls back to `site.gallery`, so anywhere already
-   passing a plain list keeps working unchanged. */
-
-/* GalleryPanel — read-only, live, and built for an album rather than a
-   handful of photographs.
- 
-   Four things matter once a layout has forty site photos on it:
- 
-   1. THE TILE SIZE IS THE PANEL'S, NOT THE WINDOW'S. The panel is a
-      full-width sheet on a phone and a 340–400px drawer on everything
-      else, so a tile sized off window width is wrong in the drawer.
-      minmax(min(tile, 100%), 1fr) also stops a tile wider than the
-      panel from overflowing it on a 320px phone.
- 
-   2. THE FOOTPRINT IS ONLY REPORTED WHEN IT CHANGES. Every image that
-      decodes fires the ResizeObserver, and each report used to set
-      state in PlanMap and re-aim the camera. Forty images was forty
-      re-aims. The fixed 4/3 aspect-ratio keeps the box stable while
-      they load; this comparison catches whatever is left.
- 
-   3. OFF-SCREEN TILES ARE NOT LAID OUT. contentVisibility with an
-      intrinsic size lets the browser skip rendering rows scrolled out
-      of the panel while keeping the scrollbar honest.
- 
-   4. KEYED BY ID. Two photographs uploaded with the same name resolve
-      to different URLs, but a placeholder list can repeat one — and a
-      duplicate key silently drops a tile.
- 
-   Add to the top of the file this lives in:
- 
-     import { watchGallery } from '../../services/Galleryservice'; */
-
-// function GalleryPanel({ site, onWidth, onClose, mapId }) {
-//   const boxRef = useRef(null);
-//   const vp = useViewport();
-//   const sheet = isSheet(vp);
-
-//   const [live, setLive] = useState(null);   // null = not loaded yet
-//   const [error, setError] = useState(null);
-
-//   const lastFootprint = useRef('');
-
-//   useEffect(() => {
-//     const el = boxRef.current;
-//     if (!el) return undefined;
-
-//     const report = () => {
-//       const f = panelFootprint(el);
-//       /* Rounded before comparing: a decoding image can move the box by
-//          a fraction of a pixel, which is not a change the camera needs
-//          to hear about. */
-//       const key = `${Math.round(f.right || 0)}x${Math.round(f.bottom || 0)}`;
-//       if (key === lastFootprint.current) return;
-//       lastFootprint.current = key;
-//       onWidth(f);
-//     };
-//     report();
-
-//     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
-//     if (ro) ro.observe(el);
-//     window.addEventListener('resize', report);
-//     window.addEventListener('orientationchange', report);
-//     return () => {
-//       if (ro) ro.disconnect();
-//       window.removeEventListener('resize', report);
-//       window.removeEventListener('orientationchange', report);
-//       lastFootprint.current = '';
-//       onWidth(null);
-//     };
-//   }, [onWidth]);
-
-//   /* Live rather than one-shot: an admin adding photographs from the
-//      Flutter app while a salesman has the panel open should show up
-//      without a reload. watchGallery returns its own unsubscribe. */
-//   useEffect(() => {
-//     if (!mapId) return undefined;
-//     return watchGallery(
-//       mapId,
-//       (list) => { setLive(list); setError(null); },
-//       (err) => setError(err?.message || 'Could not load the gallery.'),
-//     );
-//   }, [mapId]);
-
-//   const gallery = useMemo(() => {
-//     if (!mapId) {
-//       return (site?.gallery || []).map((g, i) => ({
-//         id: `${g.url || 'img'}-${i}`,
-//         url: g.url,
-//         thumb: g.thumb || g.url,
-//         caption: g.caption || '',
-//       }));
-//     }
-//     return (live || []).map((im) => ({
-//       id: im.id,
-//       url: im.url,
-//       thumb: im.thumb || im.url,
-//       caption: im.name || '',
-//     }));
-//   }, [mapId, live, site]);
-
-//   const loading = !!mapId && live === null && !error;
-
-//   /* Three across, whatever the device. A 320px phone sheet, a 340px
-//      tablet drawer and a 400px desktop drawer all want a different
-//      number here, and one fixed minimum gets two of the three wrong. */
-//   let tile = 140;
-//   if (sheet) tile = vp.w < 360 ? 96 : 108;
-//   else if (vp.w < TABLET_PX) tile = 118;
-//   const gap = sheet ? 6 : 8;
-
-//   return (
-//     <div
-//       ref={boxRef}
-//       className="site-panel"
-//       onPointerDown={(e) => e.stopPropagation()}
-//       style={panelBox(vp)}
-//     >
-//       {sheet && <SheetGrip />}
-
-//       <div style={{
-//         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-//         borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
-//       }}>
-//         <span style={{
-//           display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
-//           font: `500 13px/1 ${MONO}`, opacity: 0.75,
-//         }}>
-//           <PanelIcon name="gallery" size={16} />
-//           Gallery
-//           {gallery.length > 0 && (
-//             <span style={{ opacity: 0.55 }}>{gallery.length}</span>
-//           )}
-//         </span>
-//         <button
-//           type="button"
-//           onClick={onClose}
-//           title="Close"
-//           aria-label="Close"
-//           style={{
-//             width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
-//             border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
-//             flex: '0 0 auto',
-//             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-//             WebkitAppearance: 'none', appearance: 'none',
-//           }}
-//         >
-//           ×
-//         </button>
-//       </div>
-
-//       <div style={panelBody(vp)}>
-//         {error && (
-//           <p style={{ font: `400 12px/1.5 ${MONO}`, color: '#E0A33C', margin: '0 0 10px' }}>
-//             {error}
-//           </p>
-//         )}
-
-//         {loading ? (
-//           <p style={{ opacity: 0.6 }}>Loading photographs…</p>
-//         ) : gallery.length ? (
-//           <div style={{
-//             display: 'grid',
-//             /* min(tile, 100%) is what keeps a single wide tile from
-//                overflowing a narrow panel instead of shrinking */
-//             gridTemplateColumns: `repeat(auto-fill, minmax(min(${tile}px, 100%), 1fr))`,
-//             gap,
-//           }}>
-//             {gallery.map((g) => (
-//               /* loading="lazy" is not optional here: a site album is
-//                  twenty photographs, and fetching all of them the moment
-//                  the panel opens stalls the map's own tiles on a phone
-//                  connection. */
-//               <a
-//                 key={g.id}
-//                 href={g.url}
-//                 target="_blank"
-//                 rel="noreferrer"
-//                 title={g.caption || undefined}
-//                 aria-label={g.caption || 'Open photograph'}
-//                 style={{
-//                   display: 'block',
-//                   /* rows scrolled out of the panel cost nothing to keep
-//                      around; the intrinsic size keeps the scrollbar and
-//                      the panel height honest while they are skipped */
-//                   contentVisibility: 'auto',
-//                   containIntrinsicSize: `${Math.round(tile * 0.75)}px`,
-//                   WebkitTapHighlightColor: 'transparent',
-//                 }}
-//               >
-//                 <img
-//                   src={g.thumb || g.url}
-//                   alt={g.caption || ''}
-//                   loading="lazy"
-//                   decoding="async"
-//                   style={{
-//                     width: '100%', aspectRatio: '4 / 3', objectFit: 'cover',
-//                     borderRadius: 8, border: `1px solid ${HAIR}`, display: 'block',
-//                     background: 'rgba(255,255,255,0.04)',
-//                   }}
-//                 />
-//               </a>
-//             ))}
-//           </div>
-//         ) : (
-//           <p style={{ opacity: 0.6 }}>No site photographs yet.</p>
-//         )}
-//       </div>
-//     </div>
-//   );
-// }
-
-/* ── BROCHURES ───────────────────────────────────────────────────────
-   The one PDF the customer is asked to take home — the file bundled
-   with the build, and nothing else.
-
-   `site.brochures` STAYS OUT OF IT deliberately: it also carries the
-   layout plan, which is on screen already and does not need handing
-   over a second time as a download. If a project ever needs its own
-   brochure in place of this one, filter that list by kind here rather
-   than appending all of it.
-
-   `download` on a PDF link is a hint, not a guarantee: iOS Safari
-   ignores it and opens the file in its own viewer, which is the better
-   outcome anyway — the customer sees it straight away and can share it
-   from there. */
-// function BrochuresPanel({ onWidth, onClose }) {
-//   const boxRef = useRef(null);
-//   const vp = useViewport();
-//   const sheet = isSheet(vp);
-
-//   useEffect(() => {
-//     const el = boxRef.current;
-//     if (!el) return undefined;
-//     const report = () => onWidth(panelFootprint(el));
-//     report();
-
-//     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
-//     if (ro) ro.observe(el);
-//     window.addEventListener('resize', report);
-//     window.addEventListener('orientationchange', report);
-//     return () => {
-//       if (ro) ro.disconnect();
-//       window.removeEventListener('resize', report);
-//       window.removeEventListener('orientationchange', report);
-//       onWidth(null);
-//     };
-//   }, [onWidth]);
-
-//   return (
-//     <div
-//       ref={boxRef}
-//       className="site-panel"
-//       onPointerDown={(e) => e.stopPropagation()}
-//       style={panelBox(vp)}
-//     >
-//       {sheet && <SheetGrip />}
-
-//       <div style={{
-//         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-//         borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
-//       }}>
-//         <span style={{
-//           display: 'flex', alignItems: 'center', gap: 8,
-//           font: `500 13px/1 ${MONO}`, opacity: 0.75,
-//         }}>
-//           <PanelIcon name="brochures" size={16} />
-//           Brochures
-//         </span>
-//         <button
-//           type="button"
-//           onClick={onClose}
-//           title="Close"
-//           aria-label="Close"
-//           style={{
-//             width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
-//             border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
-//             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-//             WebkitAppearance: 'none', appearance: 'none',
-//           }}
-//         >
-//           ×
-//         </button>
-//       </div>
-
-//       <div style={panelBody(vp)}>
-//         <a
-//           href={BROCHURE}
-//           target="_blank"
-//           rel="noreferrer"
-//           download
-//           style={{
-//             /* a whole row, 56 px tall, is the target on a tablet
-//                someone is holding one-handed in front of a buyer */
-//             display: 'flex', alignItems: 'center',
-//             justifyContent: 'space-between', gap: 12,
-//             minHeight: 56, padding: '0 2px',
-//             borderBottom: `1px solid ${HAIR}`,
-//             color: '#E7E1D5', textDecoration: 'none',
-//             WebkitTapHighlightColor: 'transparent',
-//           }}
-//         >
-//           <span>Project brochure</span>
-//           <span style={{ color: ACCENT, whiteSpace: 'nowrap' }}>PDF</span>
-//         </a>
-//       </div>
-//     </div>
-//   );
-// }
-
 /**
  * Map + plan. The map owns pan and zoom; the plan is one div riding an
  * OverlayView, warped onto the ground each frame.
@@ -4842,14 +4013,10 @@ function SheetGrip() {
  * the layout, and the match set the plan is already drawn against — is
  * here. The panel narrows on top of whatever `matches` the parent sends
  * down, so the toolbar search and the panel stack instead of fighting.
- *
- * `site` is the project itself — the launch notice, address,
- * photographs, brochures — and is the only prop here that is content
- * rather than geometry. See the three panels above for its shape.
  */
 export default function PlanMap({
   layout, selected, onSelect, matches, status, mapRef, fitRef, onReady,
-  showNumbers, setShowNumbers, showStatus, setShowStatus, reserve, site, mapId, share = false,
+  showNumbers, setShowNumbers, showStatus, setShowStatus, reserve, share = false,
 }) {
   const viewRef = useRef(null);
   const hostRef = useRef(null);
@@ -4878,7 +4045,7 @@ export default function PlanMap({
      plan mid-gesture is what the flickering actually is. */
   const turningRef = useRef(false);
   const settleWinRef = useRef(0);
-const PLAN_BG = '#2B2B2B';
+
   /* which plot the camera has already flown to, so a late `reserve`
      re-aims instead of starting the whole flight again */
   const flownRef = useRef(null);
@@ -4959,13 +4126,6 @@ const PLAN_BG = '#2B2B2B';
   const [draft, setDraft] = useState(EMPTY_FILTERS);
   const [filterHits, setFilterHits] = useState(null);
 
-  /* Which of the three panels is open, if any, and what it has claimed
-     of the screen. The claim is state rather than a ref because the
-     inset it feeds is what flyTo aims by — but it is only written on
-     open, close and resize, never per frame. */
-  const [panel, setPanel] = useState(null);
-  const [panelInset, setPanelInset] = useState(null);
-
   /* True once the CSS camera is off square. It drives the container
      oversizing and whether the compass is offered — a rotation with no
      way back to north would be a trap. State, not a ref, because the
@@ -5017,7 +4177,7 @@ const PLAN_BG = '#2B2B2B';
      `!share && !status` blinks the colours off for the first frames of
      every load, while the status map is still coming down from
      Firestore. */
- const canStatus = !isShareUrl();
+  const canStatus = !isShareUrl();
 
   const [ownNumbers, setOwnNumbers] = useState(showNumbers !== false);
   const [ownStatus, setOwnStatus] = useState(true);
@@ -5037,21 +4197,17 @@ const PLAN_BG = '#2B2B2B';
 
   const plots = useMemo(() => [...layout.byName.values()], [layout]);
 
-  /* Screen edges that are spoken for — the details panel, whichever
-     site panel is open, and anything else sitting over the map. Broken
-     apart and re-assembled because a parent passing
-     `reserve={{ right: 340 }}` inline hands us a new object every
-     render, and flyTo would then re-aim on every render rather than
-     when the space actually changed. */
+  /* Screen edges that are spoken for — the details panel, and anything
+     else sitting over the map. Broken apart and re-assembled because a
+     parent passing `reserve={{ right: 340 }}` inline hands us a new
+     object every render, and flyTo would then re-aim on every render
+     rather than when the space actually changed. */
   const { left: rl = 0, right: rr = 0, top: rt = 0, bottom: rb = 0 } = reserve || {};
-  const {
-    left: pl = 0, right: pr = 0, top: pt = 0, bottom: pb = 0,
-  } = panelInset || {};
   const inset = useMemo(
     () => ({
-      left: rl + pl, right: rr + pr, top: rt + pt, bottom: rb + pb,
+      left: rl, right: rr, top: rt, bottom: rb,
     }),
-    [rl, rr, rt, rb, pl, pr, pt, pb],
+    [rl, rr, rt, rb],
   );
 
   /* Search and filter both narrow, so they intersect. Null from both
@@ -5329,8 +4485,8 @@ const PLAN_BG = '#2B2B2B';
   --------------------------------------------------------------- */
   /* The frame a pick deserves, AT THE CAMERA'S CURRENT TILT: the zoom
      that fits the plot, and the centre that puts it in the middle of
-     what is actually VISIBLE once the sheet, the panel or a site panel
-     has taken its share.
+     what is actually VISIBLE once the sheet or the panel has taken its
+     share.
 
      Split out of flyTo because three other things need the same
      answer: a re-aim when a panel opens, a re-fit when the view is
@@ -5806,11 +4962,7 @@ const PLAN_BG = '#2B2B2B';
      panel or bottom sheet has to mount and measure first — and that
      changes flyTo's identity, which used to restart the flight from
      wherever the first one had got to. That restart is the stutter you
-     see on a phone. Same plot, second run: re-aim briefly instead.
-
-     Opening or closing a site panel comes through the same path, for
-     the same reason: its width lands in `inset`, pickFrame answers
-     differently, and the plot slides clear of it in REAIM_MS. */
+     see on a phone. Same plot, second run: re-aim briefly instead. */
   useEffect(() => {
     if (!selected) {
       flownRef.current = null;
@@ -6956,7 +6108,6 @@ const PLAN_BG = '#2B2B2B';
         overflow: 'hidden', display: 'block',
         cursor: selected ? 'grab' : 'pointer',
         touchAction: selected ? 'none' : 'auto',
-        
       }}
       onPointerDown={startOrbit}
       onPointerMove={onPointerMove}
@@ -6964,7 +6115,6 @@ const PLAN_BG = '#2B2B2B';
       onPointerCancel={endDrag}
       onMouseLeave={() => setHoverSafe(null)}
     >
-       
       <PlanContentMemo
         layout={layout}
         selected={shown}
@@ -6973,10 +6123,8 @@ const PLAN_BG = '#2B2B2B';
         showNumbers={numbersOn}
         showStatus={statusOn}
         hover={hover}
-        
         setHover={setHoverSafe}
         onPick={onPickPlot}
-        // style={{background: MAP_BG}}
       />
     </svg>,
     divs.plan,
@@ -7090,31 +6238,6 @@ const PLAN_BG = '#2B2B2B';
         selectedRef={selRef}
         onReset={resetHeading}
       />
-
-      {/* The site rail. Sits under the compass — which is always there
-          now, so the offset is fixed — and STEPS ASIDE by the width of
-          whatever is open rather than hiding: with the tab strip gone,
-          this is the only way to reach the other two, so hiding it
-          would strand you in whichever panel you opened first. On a
-          phone the panel comes up from the bottom and claims no width,
-          so the rail doesn't move.
-
-          zIndex 8 puts it over the panel it has moved alongside. */}
-   
-      {/* One at a time. Switching unmounts one and mounts the next in
-          the same commit, so the outgoing panel's onWidth(null) lands
-          before the incoming one measures — `inset` goes straight to
-          the new width instead of dipping through zero and re-aiming
-          the camera twice. */}
-      {/* {panel === 'info' && (
-        <InfoPanel site={site} onWidth={setPanelInset} onClose={() => setPanel(null)} />
-      )}
-      {panel === 'gallery' && (
-  <GalleryPanel site={site} mapId={mapId} onWidth={setPanelInset} onClose={() => setPanel(null)} />
-)}
-      {panel === 'brochures' && (
-        <BrochuresPanel onWidth={setPanelInset} onClose={() => setPanel(null)} />
-      )} */}
 
       {/* Zoom, on screen, while a plot is raised.
 
@@ -7231,7 +6354,7 @@ const PLAN_BG = '#2B2B2B';
       {canStatus && (
         <StatusLegend plots={plots} status={status} show={statusOn} />
       )}
- 
+
       {error && (
         <div style={{
           position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
