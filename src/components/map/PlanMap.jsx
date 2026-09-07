@@ -7100,53 +7100,7 @@ const PLAN_BG = '#2B2B2B';
           so the rail doesn't move.
 
           zIndex 8 puts it over the panel it has moved alongside. */}
-      <div
-        style={{
-          position: 'absolute', zIndex: 8,
-          right: safeArea('right', PANEL_GAP + (panelInset?.right || 0)),
-          top: FIT_PAD.top + 56,
-          display: 'grid', gap: 8, justifyItems: 'center',
-        }}
-      >
-        {PANELS.map((t) => {
-          const on = panel === t.k;
-          return (
-            <button
-              key={t.k}
-              type="button"
-              title={t.label}
-              aria-label={t.label}
-              aria-pressed={on}
-              onPointerDown={(e) => e.stopPropagation()}
-              /* pressing the open one closes it, so the rail is the
-                 switch as well as the way in */
-              onClick={() => setPanel((p) => (p === t.k ? null : t.k))}
-              style={{
-                /* 44 wide keeps the touch target; 50 tall is what the
-                   mark and its word need without either being cramped */
-                width: 44, height: 50,
-                color: on ? CANVAS : '#E7E1D5',
-                background: on ? ACCENT : CANVAS,
-                border: `1px solid ${on ? ACCENT : HAIR}`,
-                borderRadius: 12,
-                cursor: 'pointer',
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 3,
-                padding: 0,
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-                WebkitAppearance: 'none', appearance: 'none',
-              }}
-            >
-              <PanelIcon name={t.k} />
-              <span style={{ font: `500 8px/1 ${MONO}`, letterSpacing: '0.02em' }}>
-                {t.short}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
+   
       {/* One at a time. Switching unmounts one and mounts the next in
           the same commit, so the outgoing panel's onWidth(null) lands
           before the incoming one measures — `inset` goes straight to
