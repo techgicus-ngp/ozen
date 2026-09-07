@@ -4362,107 +4362,107 @@ function SheetGrip() {
    ON A PHONE THE ROWS STACK, label above value: a 110 px label column
    against a 360 px screen leaves every value wrapping to three lines.
    On anything wider they sit side by side and scan as a table. */
-function InfoPanel({ site, onWidth, onClose }) {
-  const boxRef = useRef(null);
-  const vp = useViewport();
-  const sheet = isSheet(vp);
+// function InfoPanel({ site, onWidth, onClose }) {
+//   const boxRef = useRef(null);
+//   const vp = useViewport();
+//   const sheet = isSheet(vp);
 
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return undefined;
-    const report = () => onWidth(panelFootprint(el));
-    report();
+//   useEffect(() => {
+//     const el = boxRef.current;
+//     if (!el) return undefined;
+//     const report = () => onWidth(panelFootprint(el));
+//     report();
 
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
-    if (ro) ro.observe(el);
-    window.addEventListener('resize', report);
-    window.addEventListener('orientationchange', report);
-    return () => {
-      if (ro) ro.disconnect();
-      window.removeEventListener('resize', report);
-      window.removeEventListener('orientationchange', report);
-      onWidth(null);   // hand the screen back on the way out
-    };
-  }, [onWidth]);
+//     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
+//     if (ro) ro.observe(el);
+//     window.addEventListener('resize', report);
+//     window.addEventListener('orientationchange', report);
+//     return () => {
+//       if (ro) ro.disconnect();
+//       window.removeEventListener('resize', report);
+//       window.removeEventListener('orientationchange', report);
+//       onWidth(null);   // hand the screen back on the way out
+//     };
+//   }, [onWidth]);
 
-  const info = site?.info || {};
-  const rows = info.rows || [];
+//   const info = site?.info || {};
+//   const rows = info.rows || [];
 
-  /* undefined means "the project didn't say" and gets the built-in
-     notice; an explicit null means "this project has none" and gets
-     nothing. `=== undefined` rather than `||` is what keeps those two
-     apart. */
-  const launch = site?.launch === undefined ? LAUNCH : site.launch;
+//   /* undefined means "the project didn't say" and gets the built-in
+//      notice; an explicit null means "this project has none" and gets
+//      nothing. `=== undefined` rather than `||` is what keeps those two
+//      apart. */
+//   const launch = site?.launch === undefined ? LAUNCH : site.launch;
 
-  return (
-    <div
-      ref={boxRef}
-      className="site-panel"
-      onPointerDown={(e) => e.stopPropagation()}
-      style={panelBox(vp)}
-    >
-      {sheet && <SheetGrip />}
+//   return (
+//     <div
+//       ref={boxRef}
+//       className="site-panel"
+//       onPointerDown={(e) => e.stopPropagation()}
+//       style={panelBox(vp)}
+//     >
+//       {sheet && <SheetGrip />}
 
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
-      }}>
-        <span style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          font: `500 13px/1 ${MONO}`, opacity: 0.75,
-        }}>
-          <PanelIcon name="info" size={16} />
-          Info
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          title="Close"
-          aria-label="Close"
-          style={{
-            width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
-            border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
-            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-            WebkitAppearance: 'none', appearance: 'none',
-          }}
-        >
-          ×
-        </button>
-      </div>
+//       <div style={{
+//         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+//         borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
+//       }}>
+//         <span style={{
+//           display: 'flex', alignItems: 'center', gap: 8,
+//           font: `500 13px/1 ${MONO}`, opacity: 0.75,
+//         }}>
+//           <PanelIcon name="info" size={16} />
+//           Info
+//         </span>
+//         <button
+//           type="button"
+//           onClick={onClose}
+//           title="Close"
+//           aria-label="Close"
+//           style={{
+//             width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
+//             border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
+//             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+//             WebkitAppearance: 'none', appearance: 'none',
+//           }}
+//         >
+//           ×
+//         </button>
+//       </div>
 
-      <div style={panelBody(vp)}>
-        <LaunchNote launch={launch} sheet={sheet} />
+//       <div style={panelBody(vp)}>
+//         <LaunchNote launch={launch} sheet={sheet} />
 
-        {info.title && (
-          <div style={{
-            font: `600 ${sheet ? 15 : 16}px/1.4 ${MONO}`, marginBottom: 12,
-          }}>
-            {info.title}
-          </div>
-        )}
-        {rows.map(([k, v]) => (
-          <div
-            key={k}
-            style={{
-              display: 'flex',
-              flexDirection: sheet ? 'column' : 'row',
-              gap: sheet ? 2 : 12,
-              padding: '8px 0',
-              borderBottom: `1px solid ${HAIR}`,
-            }}
-          >
-            <span style={{ opacity: 0.6, minWidth: sheet ? 0 : 110 }}>{k}</span>
-            <span style={{ wordBreak: 'break-word' }}>{v}</span>
-          </div>
-        ))}
-        {info.note && <p style={{ marginTop: 14, opacity: 0.85 }}>{info.note}</p>}
-        {!launch && !info.title && !rows.length && !info.note && (
-          <p style={{ opacity: 0.6 }}>Site details haven’t been added yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
+//         {info.title && (
+//           <div style={{
+//             font: `600 ${sheet ? 15 : 16}px/1.4 ${MONO}`, marginBottom: 12,
+//           }}>
+//             {info.title}
+//           </div>
+//         )}
+//         {rows.map(([k, v]) => (
+//           <div
+//             key={k}
+//             style={{
+//               display: 'flex',
+//               flexDirection: sheet ? 'column' : 'row',
+//               gap: sheet ? 2 : 12,
+//               padding: '8px 0',
+//               borderBottom: `1px solid ${HAIR}`,
+//             }}
+//           >
+//             <span style={{ opacity: 0.6, minWidth: sheet ? 0 : 110 }}>{k}</span>
+//             <span style={{ wordBreak: 'break-word' }}>{v}</span>
+//           </div>
+//         ))}
+//         {info.note && <p style={{ marginTop: 14, opacity: 0.85 }}>{info.note}</p>}
+//         {!launch && !info.title && !rows.length && !info.note && (
+//           <p style={{ opacity: 0.6 }}>Site details haven’t been added yet.</p>
+//         )}
+//       </div>
+//     </div>
+//   );
+// }
 
 /* ── GALLERY ─────────────────────────────────────────────────────────
    Photographs of the ground.
@@ -4519,184 +4519,184 @@ function InfoPanel({ site, onWidth, onClose }) {
  
      import { watchGallery } from '../../services/Galleryservice'; */
 
-function GalleryPanel({ site, onWidth, onClose, mapId }) {
-  const boxRef = useRef(null);
-  const vp = useViewport();
-  const sheet = isSheet(vp);
+// function GalleryPanel({ site, onWidth, onClose, mapId }) {
+//   const boxRef = useRef(null);
+//   const vp = useViewport();
+//   const sheet = isSheet(vp);
 
-  const [live, setLive] = useState(null);   // null = not loaded yet
-  const [error, setError] = useState(null);
+//   const [live, setLive] = useState(null);   // null = not loaded yet
+//   const [error, setError] = useState(null);
 
-  const lastFootprint = useRef('');
+//   const lastFootprint = useRef('');
 
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return undefined;
+//   useEffect(() => {
+//     const el = boxRef.current;
+//     if (!el) return undefined;
 
-    const report = () => {
-      const f = panelFootprint(el);
-      /* Rounded before comparing: a decoding image can move the box by
-         a fraction of a pixel, which is not a change the camera needs
-         to hear about. */
-      const key = `${Math.round(f.right || 0)}x${Math.round(f.bottom || 0)}`;
-      if (key === lastFootprint.current) return;
-      lastFootprint.current = key;
-      onWidth(f);
-    };
-    report();
+//     const report = () => {
+//       const f = panelFootprint(el);
+//       /* Rounded before comparing: a decoding image can move the box by
+//          a fraction of a pixel, which is not a change the camera needs
+//          to hear about. */
+//       const key = `${Math.round(f.right || 0)}x${Math.round(f.bottom || 0)}`;
+//       if (key === lastFootprint.current) return;
+//       lastFootprint.current = key;
+//       onWidth(f);
+//     };
+//     report();
 
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
-    if (ro) ro.observe(el);
-    window.addEventListener('resize', report);
-    window.addEventListener('orientationchange', report);
-    return () => {
-      if (ro) ro.disconnect();
-      window.removeEventListener('resize', report);
-      window.removeEventListener('orientationchange', report);
-      lastFootprint.current = '';
-      onWidth(null);
-    };
-  }, [onWidth]);
+//     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
+//     if (ro) ro.observe(el);
+//     window.addEventListener('resize', report);
+//     window.addEventListener('orientationchange', report);
+//     return () => {
+//       if (ro) ro.disconnect();
+//       window.removeEventListener('resize', report);
+//       window.removeEventListener('orientationchange', report);
+//       lastFootprint.current = '';
+//       onWidth(null);
+//     };
+//   }, [onWidth]);
 
-  /* Live rather than one-shot: an admin adding photographs from the
-     Flutter app while a salesman has the panel open should show up
-     without a reload. watchGallery returns its own unsubscribe. */
-  useEffect(() => {
-    if (!mapId) return undefined;
-    return watchGallery(
-      mapId,
-      (list) => { setLive(list); setError(null); },
-      (err) => setError(err?.message || 'Could not load the gallery.'),
-    );
-  }, [mapId]);
+//   /* Live rather than one-shot: an admin adding photographs from the
+//      Flutter app while a salesman has the panel open should show up
+//      without a reload. watchGallery returns its own unsubscribe. */
+//   useEffect(() => {
+//     if (!mapId) return undefined;
+//     return watchGallery(
+//       mapId,
+//       (list) => { setLive(list); setError(null); },
+//       (err) => setError(err?.message || 'Could not load the gallery.'),
+//     );
+//   }, [mapId]);
 
-  const gallery = useMemo(() => {
-    if (!mapId) {
-      return (site?.gallery || []).map((g, i) => ({
-        id: `${g.url || 'img'}-${i}`,
-        url: g.url,
-        thumb: g.thumb || g.url,
-        caption: g.caption || '',
-      }));
-    }
-    return (live || []).map((im) => ({
-      id: im.id,
-      url: im.url,
-      thumb: im.thumb || im.url,
-      caption: im.name || '',
-    }));
-  }, [mapId, live, site]);
+//   const gallery = useMemo(() => {
+//     if (!mapId) {
+//       return (site?.gallery || []).map((g, i) => ({
+//         id: `${g.url || 'img'}-${i}`,
+//         url: g.url,
+//         thumb: g.thumb || g.url,
+//         caption: g.caption || '',
+//       }));
+//     }
+//     return (live || []).map((im) => ({
+//       id: im.id,
+//       url: im.url,
+//       thumb: im.thumb || im.url,
+//       caption: im.name || '',
+//     }));
+//   }, [mapId, live, site]);
 
-  const loading = !!mapId && live === null && !error;
+//   const loading = !!mapId && live === null && !error;
 
-  /* Three across, whatever the device. A 320px phone sheet, a 340px
-     tablet drawer and a 400px desktop drawer all want a different
-     number here, and one fixed minimum gets two of the three wrong. */
-  let tile = 140;
-  if (sheet) tile = vp.w < 360 ? 96 : 108;
-  else if (vp.w < TABLET_PX) tile = 118;
-  const gap = sheet ? 6 : 8;
+//   /* Three across, whatever the device. A 320px phone sheet, a 340px
+//      tablet drawer and a 400px desktop drawer all want a different
+//      number here, and one fixed minimum gets two of the three wrong. */
+//   let tile = 140;
+//   if (sheet) tile = vp.w < 360 ? 96 : 108;
+//   else if (vp.w < TABLET_PX) tile = 118;
+//   const gap = sheet ? 6 : 8;
 
-  return (
-    <div
-      ref={boxRef}
-      className="site-panel"
-      onPointerDown={(e) => e.stopPropagation()}
-      style={panelBox(vp)}
-    >
-      {sheet && <SheetGrip />}
+//   return (
+//     <div
+//       ref={boxRef}
+//       className="site-panel"
+//       onPointerDown={(e) => e.stopPropagation()}
+//       style={panelBox(vp)}
+//     >
+//       {sheet && <SheetGrip />}
 
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
-      }}>
-        <span style={{
-          display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
-          font: `500 13px/1 ${MONO}`, opacity: 0.75,
-        }}>
-          <PanelIcon name="gallery" size={16} />
-          Gallery
-          {gallery.length > 0 && (
-            <span style={{ opacity: 0.55 }}>{gallery.length}</span>
-          )}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          title="Close"
-          aria-label="Close"
-          style={{
-            width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
-            border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
-            flex: '0 0 auto',
-            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-            WebkitAppearance: 'none', appearance: 'none',
-          }}
-        >
-          ×
-        </button>
-      </div>
+//       <div style={{
+//         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+//         borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
+//       }}>
+//         <span style={{
+//           display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
+//           font: `500 13px/1 ${MONO}`, opacity: 0.75,
+//         }}>
+//           <PanelIcon name="gallery" size={16} />
+//           Gallery
+//           {gallery.length > 0 && (
+//             <span style={{ opacity: 0.55 }}>{gallery.length}</span>
+//           )}
+//         </span>
+//         <button
+//           type="button"
+//           onClick={onClose}
+//           title="Close"
+//           aria-label="Close"
+//           style={{
+//             width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
+//             border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
+//             flex: '0 0 auto',
+//             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+//             WebkitAppearance: 'none', appearance: 'none',
+//           }}
+//         >
+//           ×
+//         </button>
+//       </div>
 
-      <div style={panelBody(vp)}>
-        {error && (
-          <p style={{ font: `400 12px/1.5 ${MONO}`, color: '#E0A33C', margin: '0 0 10px' }}>
-            {error}
-          </p>
-        )}
+//       <div style={panelBody(vp)}>
+//         {error && (
+//           <p style={{ font: `400 12px/1.5 ${MONO}`, color: '#E0A33C', margin: '0 0 10px' }}>
+//             {error}
+//           </p>
+//         )}
 
-        {loading ? (
-          <p style={{ opacity: 0.6 }}>Loading photographs…</p>
-        ) : gallery.length ? (
-          <div style={{
-            display: 'grid',
-            /* min(tile, 100%) is what keeps a single wide tile from
-               overflowing a narrow panel instead of shrinking */
-            gridTemplateColumns: `repeat(auto-fill, minmax(min(${tile}px, 100%), 1fr))`,
-            gap,
-          }}>
-            {gallery.map((g) => (
-              /* loading="lazy" is not optional here: a site album is
-                 twenty photographs, and fetching all of them the moment
-                 the panel opens stalls the map's own tiles on a phone
-                 connection. */
-              <a
-                key={g.id}
-                href={g.url}
-                target="_blank"
-                rel="noreferrer"
-                title={g.caption || undefined}
-                aria-label={g.caption || 'Open photograph'}
-                style={{
-                  display: 'block',
-                  /* rows scrolled out of the panel cost nothing to keep
-                     around; the intrinsic size keeps the scrollbar and
-                     the panel height honest while they are skipped */
-                  contentVisibility: 'auto',
-                  containIntrinsicSize: `${Math.round(tile * 0.75)}px`,
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-              >
-                <img
-                  src={g.thumb || g.url}
-                  alt={g.caption || ''}
-                  loading="lazy"
-                  decoding="async"
-                  style={{
-                    width: '100%', aspectRatio: '4 / 3', objectFit: 'cover',
-                    borderRadius: 8, border: `1px solid ${HAIR}`, display: 'block',
-                    background: 'rgba(255,255,255,0.04)',
-                  }}
-                />
-              </a>
-            ))}
-          </div>
-        ) : (
-          <p style={{ opacity: 0.6 }}>No site photographs yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
+//         {loading ? (
+//           <p style={{ opacity: 0.6 }}>Loading photographs…</p>
+//         ) : gallery.length ? (
+//           <div style={{
+//             display: 'grid',
+//             /* min(tile, 100%) is what keeps a single wide tile from
+//                overflowing a narrow panel instead of shrinking */
+//             gridTemplateColumns: `repeat(auto-fill, minmax(min(${tile}px, 100%), 1fr))`,
+//             gap,
+//           }}>
+//             {gallery.map((g) => (
+//               /* loading="lazy" is not optional here: a site album is
+//                  twenty photographs, and fetching all of them the moment
+//                  the panel opens stalls the map's own tiles on a phone
+//                  connection. */
+//               <a
+//                 key={g.id}
+//                 href={g.url}
+//                 target="_blank"
+//                 rel="noreferrer"
+//                 title={g.caption || undefined}
+//                 aria-label={g.caption || 'Open photograph'}
+//                 style={{
+//                   display: 'block',
+//                   /* rows scrolled out of the panel cost nothing to keep
+//                      around; the intrinsic size keeps the scrollbar and
+//                      the panel height honest while they are skipped */
+//                   contentVisibility: 'auto',
+//                   containIntrinsicSize: `${Math.round(tile * 0.75)}px`,
+//                   WebkitTapHighlightColor: 'transparent',
+//                 }}
+//               >
+//                 <img
+//                   src={g.thumb || g.url}
+//                   alt={g.caption || ''}
+//                   loading="lazy"
+//                   decoding="async"
+//                   style={{
+//                     width: '100%', aspectRatio: '4 / 3', objectFit: 'cover',
+//                     borderRadius: 8, border: `1px solid ${HAIR}`, display: 'block',
+//                     background: 'rgba(255,255,255,0.04)',
+//                   }}
+//                 />
+//               </a>
+//             ))}
+//           </div>
+//         ) : (
+//           <p style={{ opacity: 0.6 }}>No site photographs yet.</p>
+//         )}
+//       </div>
+//     </div>
+//   );
+// }
 
 /* ── BROCHURES ───────────────────────────────────────────────────────
    The one PDF the customer is asked to take home — the file bundled
@@ -4712,89 +4712,89 @@ function GalleryPanel({ site, onWidth, onClose, mapId }) {
    ignores it and opens the file in its own viewer, which is the better
    outcome anyway — the customer sees it straight away and can share it
    from there. */
-function BrochuresPanel({ onWidth, onClose }) {
-  const boxRef = useRef(null);
-  const vp = useViewport();
-  const sheet = isSheet(vp);
+// function BrochuresPanel({ onWidth, onClose }) {
+//   const boxRef = useRef(null);
+//   const vp = useViewport();
+//   const sheet = isSheet(vp);
 
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return undefined;
-    const report = () => onWidth(panelFootprint(el));
-    report();
+//   useEffect(() => {
+//     const el = boxRef.current;
+//     if (!el) return undefined;
+//     const report = () => onWidth(panelFootprint(el));
+//     report();
 
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
-    if (ro) ro.observe(el);
-    window.addEventListener('resize', report);
-    window.addEventListener('orientationchange', report);
-    return () => {
-      if (ro) ro.disconnect();
-      window.removeEventListener('resize', report);
-      window.removeEventListener('orientationchange', report);
-      onWidth(null);
-    };
-  }, [onWidth]);
+//     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null;
+//     if (ro) ro.observe(el);
+//     window.addEventListener('resize', report);
+//     window.addEventListener('orientationchange', report);
+//     return () => {
+//       if (ro) ro.disconnect();
+//       window.removeEventListener('resize', report);
+//       window.removeEventListener('orientationchange', report);
+//       onWidth(null);
+//     };
+//   }, [onWidth]);
 
-  return (
-    <div
-      ref={boxRef}
-      className="site-panel"
-      onPointerDown={(e) => e.stopPropagation()}
-      style={panelBox(vp)}
-    >
-      {sheet && <SheetGrip />}
+//   return (
+//     <div
+//       ref={boxRef}
+//       className="site-panel"
+//       onPointerDown={(e) => e.stopPropagation()}
+//       style={panelBox(vp)}
+//     >
+//       {sheet && <SheetGrip />}
 
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
-      }}>
-        <span style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          font: `500 13px/1 ${MONO}`, opacity: 0.75,
-        }}>
-          <PanelIcon name="brochures" size={16} />
-          Brochures
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          title="Close"
-          aria-label="Close"
-          style={{
-            width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
-            border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
-            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-            WebkitAppearance: 'none', appearance: 'none',
-          }}
-        >
-          ×
-        </button>
-      </div>
+//       <div style={{
+//         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+//         borderBottom: `1px solid ${HAIR}`, flex: '0 0 auto', paddingLeft: 16,
+//       }}>
+//         <span style={{
+//           display: 'flex', alignItems: 'center', gap: 8,
+//           font: `500 13px/1 ${MONO}`, opacity: 0.75,
+//         }}>
+//           <PanelIcon name="brochures" size={16} />
+//           Brochures
+//         </span>
+//         <button
+//           type="button"
+//           onClick={onClose}
+//           title="Close"
+//           aria-label="Close"
+//           style={{
+//             width: 44, height: 44, background: 'transparent', color: '#E7E1D5',
+//             border: 'none', cursor: 'pointer', font: `500 16px/1 ${MONO}`,
+//             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+//             WebkitAppearance: 'none', appearance: 'none',
+//           }}
+//         >
+//           ×
+//         </button>
+//       </div>
 
-      <div style={panelBody(vp)}>
-        <a
-          href={BROCHURE}
-          target="_blank"
-          rel="noreferrer"
-          download
-          style={{
-            /* a whole row, 56 px tall, is the target on a tablet
-               someone is holding one-handed in front of a buyer */
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', gap: 12,
-            minHeight: 56, padding: '0 2px',
-            borderBottom: `1px solid ${HAIR}`,
-            color: '#E7E1D5', textDecoration: 'none',
-            WebkitTapHighlightColor: 'transparent',
-          }}
-        >
-          <span>Project brochure</span>
-          <span style={{ color: ACCENT, whiteSpace: 'nowrap' }}>PDF</span>
-        </a>
-      </div>
-    </div>
-  );
-}
+//       <div style={panelBody(vp)}>
+//         <a
+//           href={BROCHURE}
+//           target="_blank"
+//           rel="noreferrer"
+//           download
+//           style={{
+//             /* a whole row, 56 px tall, is the target on a tablet
+//                someone is holding one-handed in front of a buyer */
+//             display: 'flex', alignItems: 'center',
+//             justifyContent: 'space-between', gap: 12,
+//             minHeight: 56, padding: '0 2px',
+//             borderBottom: `1px solid ${HAIR}`,
+//             color: '#E7E1D5', textDecoration: 'none',
+//             WebkitTapHighlightColor: 'transparent',
+//           }}
+//         >
+//           <span>Project brochure</span>
+//           <span style={{ color: ACCENT, whiteSpace: 'nowrap' }}>PDF</span>
+//         </a>
+//       </div>
+//     </div>
+//   );
+// }
 
 /**
  * Map + plan. The map owns pan and zoom; the plan is one div riding an
