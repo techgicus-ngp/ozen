@@ -21,7 +21,7 @@ import { fromDoc } from '../lib/Quote';
  * If there are live records under the old name, they have to be migrated
  * or read separately; changing this constant alone will not find them.
  */
-export const QUOTATIONS = 'quotations_saraswati';
+export const QUOTATIONS = 'ozen_booking_forms';
 
 const col = () => collection(db, QUOTATIONS);
 
