@@ -158,7 +158,7 @@
 //   );
 // }
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { pathWithHoles } from '../../lib/geometry';
 import { fittedNumberSize } from '../../lib/labels';
 import { STATUS, statusKeyOf } from '../../theme/status';
@@ -166,23 +166,15 @@ import {
   DIM_EDGE, DIM_FILL, DIM_INK,
   KIND, MAPFONT, MONO, SANS, PLOT_STROKE, SEL_STROKE, SOCKET_FILL,
 } from '../../theme/tokens';
-import space1 from "../../assets/space1.jpeg"
+import space1 from "../../assets/space12.jpeg"   // check filename: maybe "space1.jpeg"?
 import space3 from "../../assets/space3.jpeg"
 import space2 from "../../assets/space2.jpeg"
 
-/* EVERY plot on the layout, off-white. This replaces toneOf's per-block
-   master-plan tones outright — one plot reads the same as the next, so
-   the only colour anywhere on the plan is a sale colour, and a coloured
-   plot means something rather than being one more shade among twelve.
-
-   Roads, open spaces and amenities are untouched: their colours come
-   from KIND, not from here.
-
-   Change this one constant to recolour the whole layout. */
+/* EVERY plot on the layout, off-white. Change this one constant to
+   recolour the whole layout. Sale colours are the only other colour. */
 const PLAIN_FILL = '#F1ECE2';
 
-/* ── OPEN-SPACE IMAGES ───────────────────────────────────────────────
-   One image per open space, a different one for each. */
+/* ── OPEN-SPACE IMAGES ─────────────────────────────────────────────── */
 const OPEN_KIND = 'open_space';
 
 const OPEN_IMAGES = [
@@ -201,23 +193,20 @@ const OPEN_IMAGE_BY_NAME = {
    space too (it only gets an image if one is given for it). */
 const EXTRA_SPACE_WORDS = /nmrda/i;
 
-/* Spaces listed here use the picture's proportions (width ÷ height) to
-   choose the angle and position of the picture. */
+/* Spaces listed here use the picture's proportions (width ÷ height). */
 const IMAGE_RATIO = {
   'OPEN SPACE 1': 3200 / 1370,
 };
 
-/* NEW: spaces listed here are COVERED completely. The picture is spread
-   over the full extent of the open space (in the same angle as above)
-   and clipped to the outline, so no green is left showing.
+/* Spaces listed here are COVERED completely (picture spread over the
+   full extent, clipped to the outline).
      true  → cover the whole open space
-     false → keep the picture as the largest undistorted rectangle inside */
+     false → largest undistorted rectangle inside */
 const COVER_SPACE = {
   'OPEN SPACE 1': true,
 };
 
-/* Force the picture's angle in degrees (0 = perfectly upright). Leave an
-   open space out to let the code choose the best angle. */
+/* Force the picture's angle in degrees (0 = upright). */
 const LOCK_ANGLE = {
   // 'OPEN SPACE 1': 0,
 };
@@ -235,7 +224,7 @@ const TILT_ADJUST = {
 
 const MIN_IMAGE_AREA = 100;   // m² — spaces smaller than this get no image
 
-const DEBUG_SPACES = false;   // set true to list every non-plot feature in the console
+const DEBUG_SPACES = false;   // true → list every non-plot feature in the console
 
 /* ── geometry helpers ───────────────────────────────────────────────── */
 
@@ -252,7 +241,7 @@ function pip(x, y, poly) {
 
 // does a w×h rectangle centred on (cx,cy), turned by (c,s), sit fully inside the polygon?
 function rectFits(poly, cx, cy, w, h, c, s) {
-  const S = 8;
+  const S = 5;   // was 8
   for (let k = 0; k <= S; k++) {
     const t = k / S;
     const pts = [
@@ -305,7 +294,7 @@ function bestRect(pts, ratio, lockDeg) {
     thetas = degs.flatMap((d) => [d, d + 90]).map((d) => (d * Math.PI) / 180);
   }
 
-  const G = 14;
+  const G = 9;   // was 14
   let best = { w: 0 };
   for (const th of thetas) {
     const c = Math.cos(th), s = Math.sin(th);
@@ -318,7 +307,7 @@ function bestRect(pts, ratio, lockDeg) {
         if (best.w && !rectFits(pts, cx, cy, best.w * 1.01, (best.w * 1.01) / ratio, c, s)) continue;
         let lo = best.w || 0;
         let hi = Math.max(bw, bh) * 1.2;
-        for (let it = 0; it < 10; it++) {
+        for (let it = 0; it < 8; it++) {   // was 10
           const mid = (lo + hi) / 2;
           if (rectFits(pts, cx, cy, mid, mid / ratio, c, s)) lo = mid; else hi = mid;
         }
@@ -335,9 +324,7 @@ function bestRect(pts, ratio, lockDeg) {
   return { cx: best.cx, cy: best.cy, w, h: w / ratio, deg };
 }
 
-/* NEW: the rectangle, turned by `deg`, that covers the WHOLE polygon.
-   Everything in the polygon is inside it, so a picture spread over this
-   rectangle and clipped to the outline leaves no gap. */
+/* The rectangle, turned by `deg`, that covers the WHOLE polygon. */
 function coverRect(pts, deg) {
   const rad = (deg * Math.PI) / 180;
   const c = Math.cos(rad), s = Math.sin(rad);
@@ -361,8 +348,8 @@ function coverRect(pts, deg) {
   };
 }
 
-/* Smallest tilted rectangle that covers the polygon (used for spaces
-   that fill their shape). */
+/* Smallest tilted rectangle that covers the polygon (spaces that fill
+   their shape). */
 function orientedBox(pts) {
   let best = null;
   for (let i = 0; i < pts.length; i++) {
@@ -416,116 +403,192 @@ const numOf = (f) => {
 
 const ROAD_FONT_BOOST = 2;
 
+/* One reading of a plot's status, shared by the shape and its number:
+   they have to agree, or a plot ends up with dark ink on a red fill.
+   `status` is undefined for the first frames, so it is guarded. */
+const stateOf = (status, name) => STATUS[statusKeyOf((status || {})[name])];
+
+/* ── single plot / feature shape: re-renders only if its own props change ── */
+const Shape = React.memo(function Shape({
+  d, plotName, fill, stroke, strokeWidth, fillOpacity, strokeOpacity, opacity,
+}) {
+  return (
+    <path
+      data-plot={plotName}
+      d={d}
+      fill={fill}
+      fillRule="evenodd"
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      fillOpacity={fillOpacity}
+      strokeOpacity={strokeOpacity}
+      opacity={opacity}
+      style={{ cursor: plotName ? 'pointer' : 'default' }}
+    />
+  );
+});
+
+/* ── open-space pictures: depend only on layout + showImages ── */
+const ImagesLayer = React.memo(function ImagesLayer({ spaces }) {
+  return spaces.map((s) => {
+    const clipId = `os-clip-${s.id}`;
+
+    // largest undistorted rectangle inside the shape (no clip)
+    if (s.mode === 'fit') {
+      const p = s.p;
+      return (
+        <image
+          key={`img${s.id}`}
+          href={s.src}
+          x={p.cx - p.w / 2}
+          y={p.cy - p.h / 2}
+          width={p.w}
+          height={p.h}
+          preserveAspectRatio="none"
+          transform={`rotate(${p.deg} ${p.cx} ${p.cy})`}
+          style={{ pointerEvents: 'none' }}
+        />
+      );
+    }
+
+    // 'cover' = spread over the whole space, 'fill' = fill the shape; both clipped
+    const isCover = s.mode === 'cover';
+    const r = isCover ? s.r : s.box;
+    const tilt = isCover ? r.deg : s.tilt;
+
+    return (
+      <g key={`img${s.id}`} style={{ pointerEvents: 'none' }}>
+        <defs>
+          <clipPath id={clipId}>
+            <path d={s.d} clipRule="evenodd" />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${clipId})`}>
+          <image
+            href={s.src}
+            x={r.cx - r.w / 2}
+            y={r.cy - r.h / 2}
+            width={r.w}
+            height={r.h}
+            preserveAspectRatio={isCover ? 'none' : 'xMidYMid slice'}
+            transform={`rotate(${tilt} ${r.cx} ${r.cy})`}
+            opacity={isCover ? undefined : 0.95}
+          />
+        </g>
+      </g>
+    );
+  });
+});
+
+/* ── plot numbers: sizes are precomputed per layout ── */
+const NumbersLayer = React.memo(function NumbersLayer({
+  plots, sizes, selected, matches, status, showStatus,
+}) {
+  return plots.map((f, i) => {
+    if (f.name === selected) return null;
+    const size = sizes[i];
+    if (size < 0.85) return null;   // smaller than this is a smudge, not a number
+    const dim = matches && !matches.has(f.name);
+    /* Dark ink vanishes on the red and blue fills, so the number takes
+       whatever the status says is legible on it — and stays dark on an
+       off-white plot, which has no status to ask. */
+    const st = showStatus ? stateOf(status, f.name) : null;
+    const ink = (st && st.fill && st.ink) || '#1A1208';
+    return (
+      <text
+        key={`n${f.i}`} x={f.lp[0]} y={f.lp[1]} textAnchor="middle" dy="0.35em"
+        fontFamily={MAPFONT} fontSize={size} fontWeight="600" fill={ink}
+        fillOpacity={dim ? DIM_INK : 1}
+        style={{ pointerEvents: 'none' }}
+      >
+        {f.name}
+      </text>
+    );
+  });
+});
+
+/* ── road / space / amenity names: depend only on layout ──
+   A road polygon is long and thin, so its longest edge is the direction
+   the name should run, like "9 MT. WIDE ROAD" on the CAD sheet. */
+const FeatureLabels = React.memo(function FeatureLabels({ features }) {
+  return features.map((f) => {
+    if (f.kind === 'plot') return null;
+    const label = (f.title || f.name || '').trim();
+    if (!label) return null;
+
+    const isRoad = f.kind === 'road';
+    const baseSize = Math.min(Math.max(f.ir * (isRoad ? 0.55 : 0.9), 1.2), isRoad ? 2.8 : 3.8);
+    const size = isRoad ? baseSize + ROAD_FONT_BOOST : baseSize;
+    if (size < 1.2) return null;
+
+    const ink = KIND[f.kind].ink;
+    const [x, y] = f.lp;
+
+    return (
+      <g
+        key={`l${f.i}`} style={{ pointerEvents: 'none' }} paintOrder="stroke"
+        stroke="rgba(0,0,0,0.45)" strokeWidth={size * 0.028}
+        transform={`rotate(${f.angle} ${x} ${y})`}
+      >
+        <text
+          x={x} y={isRoad ? y : y - size * 0.4} textAnchor="middle" dy="0.35em"
+          fontFamily={isRoad ? MAPFONT : SANS} fontSize={size}
+          letterSpacing={isRoad ? 0 : 0.5} fill={ink} fontWeight="600"
+        >
+          {label}
+        </text>
+        {!isRoad && f.area > 200 && (
+          <text
+            x={x} y={y + size * 0.85} textAnchor="middle" dy="0.35em"
+            fontFamily={MONO} fontSize={size * 0.62} fill={ink} opacity="0.85"
+          >
+            {Math.round(f.area).toLocaleString('en-IN')} m²
+          </text>
+        )}
+      </g>
+    );
+  });
+});
+
 /* ── THE LAYOUT BOUNDARY ─────────────────────────────────────────────
-   The outer edge of the whole site, carried down from Firestore's map
-   meta document as `layoutBoundary` and converted in buildLayout.js
-   through the same frame every plot corner goes through — so by the
-   time it reaches here it is already a plain ring of [x, y] points in
-   drawing-space metres, exactly like any feature's own `pts`. Not every
-   project has one, so this draws nothing when the field is absent
-   rather than guessing at an edge from the plots' own extent.
-
-   FILLED IN THE EXACT ROAD COLOUR (KIND.road.fill), NO STROKE — it's a
-   ground tone, not an outlined shape, matching how a road itself sits
-   on the sheet with no border of its own.
-
-   DRAWN FIRST, before plots, roads and every label, so it sits under
-   the whole layout as a backdrop rather than covering any of it. */
+   Outer edge of the whole site (`layoutBoundary`), already a ring of
+   [x, y] points in drawing-space metres. Draws nothing when absent.
+   Filled in the exact road colour, no stroke, and drawn FIRST so it
+   sits under the whole layout as a backdrop. */
 export default function PlanContent({
   layout, selected, matches, status, showNumbers, showStatus, hover, setHover, onPick,
   showImages = true,   // set false to hide open-space images
 }) {
-  /* One reading of a plot's status, shared by the shape and its number:
-     they have to agree, or a plot ends up with dark ink on a red fill.
-
-     `status` is undefined for the first frames, before the Firestore
-     read lands, so it is guarded here rather than indexed raw. */
-  const stateOf = (name) => STATUS[statusKeyOf((status || {})[name])];
-
-  const layoutBoundary = layout.layoutBoundary;
-
-  const openSpaces = layout.features.filter(isSpace).sort((a, b) => numOf(a) - numOf(b));
-
-  if (DEBUG_SPACES) {
-    console.log(
-      'non-plot features [kind, label, area]:',
-      layout.features.filter((f) => f.kind !== 'plot').map((f) => [f.kind, labelOf(f), f.area])
-    );
-    console.log('spaces that get an image:', openSpaces.map((f) => labelOf(f)));
-  }
-
-  /* Work out, once per layout, where each full picture goes. This is a
-     search, so it is kept out of the normal render.
-     Result per space: { cx, cy, w, h, deg, cover } where `cover` is the
-     rectangle that spans the whole open space (same angle). */
-  const placements = React.useMemo(() => {
-    const out = {};
-    layout.features.forEach((f) => {
-      if (!isSpace(f)) return;
-      const nameKey = (f.title || f.name || '').trim();
-      const ratio = IMAGE_RATIO[nameKey];
-      if (!ratio) return;
-      const p = bestRect(f.pts, ratio, LOCK_ANGLE[nameKey]);
-      if (!p) return;
-      const deg = p.deg + (ROTATION_ADJUST[nameKey] || 0);
-      out[f.i] = { ...p, deg, cover: coverRect(f.pts, deg) };
-    });
-    return out;
+  /* ── everything below depends only on `layout`, so it runs once ── */
+  const boundaryD = useMemo(() => {
+    const b = layout.layoutBoundary;
+    return b && b.length > 2 ? pathWithHoles(b) : null;
   }, [layout]);
 
-  return (
-    <g>
-      {layoutBoundary && layoutBoundary.length > 2 && (
-        <path
-          d={pathWithHoles(layoutBoundary)}
-          fill={KIND.road.fill}
-          fillRule="evenodd"
-          stroke="none"
-          style={{ pointerEvents: 'none' }}
-        />
-      )}
+  const pathById = useMemo(() => {
+    const m = {};
+    layout.features.forEach((f) => { m[f.i] = pathWithHoles(f.pts, f.holes); });
+    return m;
+  }, [layout]);
 
-      {layout.sorted.map((f) => {
-        const k = KIND[f.kind];
-        const isPlot = f.kind === 'plot';
-        const isSel = isPlot && selected === f.name;
-        const dim = isPlot && matches && !matches.has(f.name);
+  const numberSizes = useMemo(
+    () => layout.plots.map((f) => fittedNumberSize(f, 3.2)),
+    [layout]
+  );
 
-        let fill = k.fill;
-        if (isPlot) {
-          /* Off-white unless the plot has a sale state AND the status
-             view is up. Nothing else colours a plot. */
-          const st = stateOf(f.name);
-          fill = (showStatus && st.fill) || PLAIN_FILL;
-        }
-        if (isSel) fill = SOCKET_FILL;   // the raised copy carries the real colour
+  const spaces = useMemo(() => {
+    const list = layout.features.filter(isSpace).sort((a, b) => numOf(a) - numOf(b));
 
-        return (
-          <path
-            key={f.i}
-            data-plot={isPlot ? f.name : undefined}
-            d={pathWithHoles(f.pts, f.holes)}
-            fill={fill}
-            fillRule="evenodd"
-            stroke={isSel ? '#E9C6F2' : k.stroke}
-            strokeWidth={isSel ? SEL_STROKE : PLOT_STROKE}
-            fillOpacity={dim ? DIM_FILL : 0.92}
-            strokeOpacity={dim ? DIM_EDGE : 1}
-            opacity={hover === f.name && isPlot ? 0.85 : 1}
-            onMouseEnter={() => isPlot && setHover(f.name)}
-            onClick={() => isPlot && onPick(f.name)}
-            style={{ cursor: isPlot ? 'pointer' : 'default' }}
-          />
-        );
-      })}
+    if (DEBUG_SPACES) {
+      console.log(
+        'non-plot features [kind, label, area]:',
+        layout.features.filter((f) => f.kind !== 'plot').map((f) => [f.kind, labelOf(f), f.area])
+      );
+      console.log('spaces that get an image:', list.map(labelOf));
+    }
 
-      {/* One image per space.
-          • Spaces in IMAGE_RATIO + COVER_SPACE: the picture covers the
-            WHOLE open space (clipped to its outline, no green left).
-          • Spaces in IMAGE_RATIO only: the largest undistorted rectangle
-            that fits inside the shape.
-          • The others: fill the shape, clipped. */}
-      {showImages && openSpaces.map((f, idx) => {
+    return list
+      .map((f, idx) => {
         if (f.area != null && f.area < MIN_IMAGE_AREA) return null;
 
         const nameKey = (f.title || f.name || '').trim();
@@ -538,142 +601,96 @@ export default function PlanContent({
         // no picture for this space (e.g. the NMRDA land): draw nothing
         if (!src) return null;
 
-        const clipId = `os-clip-${f.i}`;
-        const p = placements[f.i];
+        const base = { id: f.i, src, d: pathById[f.i] };
 
-        // ── picture placed by its proportions (open space 1)
-        if (IMAGE_RATIO[nameKey] && p) {
-          // cover the whole open space: spread over the full extent, clip to the outline
-          if (COVER_SPACE[nameKey]) {
-            const r = p.cover;
-            return (
-              <g key={`img${f.i}`} style={{ pointerEvents: 'none' }}>
-                <defs>
-                  <clipPath id={clipId}>
-                    <path d={pathWithHoles(f.pts, f.holes)} clipRule="evenodd" />
-                  </clipPath>
-                </defs>
-                <g clipPath={`url(#${clipId})`}>
-                  <image
-                    href={src}
-                    x={r.cx - r.w / 2}
-                    y={r.cy - r.h / 2}
-                    width={r.w}
-                    height={r.h}
-                    preserveAspectRatio="none"
-                    transform={`rotate(${r.deg} ${r.cx} ${r.cy})`}
-                  />
-                </g>
-              </g>
-            );
+        // picture placed by its proportions (open space 1)
+        const ratio = IMAGE_RATIO[nameKey];
+        if (ratio) {
+          const p = bestRect(f.pts, ratio, LOCK_ANGLE[nameKey]);
+          if (p) {
+            const deg = p.deg + (ROTATION_ADJUST[nameKey] || 0);
+            if (COVER_SPACE[nameKey]) {
+              return { ...base, mode: 'cover', r: coverRect(f.pts, deg) };
+            }
+            return { ...base, mode: 'fit', p: { ...p, deg } };
           }
-
-          // largest undistorted rectangle inside the shape (no clip)
-          return (
-            <image
-              key={`img${f.i}`}
-              href={src}
-              x={p.cx - p.w / 2}
-              y={p.cy - p.h / 2}
-              width={p.w}
-              height={p.h}
-              preserveAspectRatio="none"
-              transform={`rotate(${p.deg} ${p.cx} ${p.cy})`}
-              style={{ pointerEvents: 'none' }}
-            />
-          );
         }
 
-        // ── fill the shape, clipped to it
+        // fill the shape, clipped to it
         const box = orientedBox(f.pts);
-        const tilt = box.deg + (TILT_ADJUST[nameKey] || 0);
+        return { ...base, mode: 'fill', box, tilt: box.deg + (TILT_ADJUST[nameKey] || 0) };
+      })
+      .filter(Boolean);
+  }, [layout, pathById]);
 
-        return (
-          <g key={`img${f.i}`} style={{ pointerEvents: 'none' }}>
-            <defs>
-              <clipPath id={clipId}>
-                <path d={pathWithHoles(f.pts, f.holes)} clipRule="evenodd" />
-              </clipPath>
-            </defs>
-            <g clipPath={`url(#${clipId})`}>
-              <image
-                href={src}
-                x={box.cx - box.w / 2}
-                y={box.cy - box.h / 2}
-                width={box.w}
-                height={box.h}
-                preserveAspectRatio="xMidYMid slice"
-                transform={`rotate(${tilt} ${box.cx} ${box.cy})`}
-                opacity="0.95"
-              />
-            </g>
-          </g>
-        );
-      })}
+  /* ── one delegated handler pair instead of two closures per plot ── */
+  const handleOver = (e) => {
+    const n = e.target.getAttribute && e.target.getAttribute('data-plot');
+    if (n) setHover(n);
+  };
+  const handleClick = (e) => {
+    const n = e.target.getAttribute && e.target.getAttribute('data-plot');
+    if (n) onPick(n);
+  };
 
-      {showNumbers && layout.plots.map((f) => {
-        if (f.name === selected) return null;
-        const dim = matches && !matches.has(f.name);
-        const size = fittedNumberSize(f, 3.2);
-        if (size < 0.85) return null;   // smaller than this is a smudge, not a number
-        /* Dark ink vanishes on the red and blue fills, so the number
-           takes whatever the status says is legible on it — and stays
-           dark on an off-white plot, which has no status to ask. */
-        const st = showStatus ? stateOf(f.name) : null;
-        const ink = (st && st.fill && st.ink) || '#1A1208';
-        return (
-          <text
-            key={`n${f.i}`} x={f.lp[0]} y={f.lp[1]} textAnchor="middle" dy="0.35em"
-            fontFamily={MAPFONT} fontSize={size} fontWeight="600" fill={ink}
-            fillOpacity={dim ? DIM_INK : 1}
-            style={{ pointerEvents: 'none' }}
-          >
-            {f.name}
-          </text>
-        );
-      })}
+  return (
+    <g>
+      {boundaryD && (
+        <path
+          d={boundaryD}
+          fill={KIND.road.fill}
+          fillRule="evenodd"
+          stroke="none"
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
 
-      {/* Roads, open spaces, amenities and utilities name themselves. A
-          road polygon is long and thin, so its longest edge is the
-          direction the name should run — which is how the CAD sheet set
-          "9 MT. WIDE ROAD" along each carriageway. */}
-      {layout.features.map((f) => {
-        if (f.kind === 'plot') return null;
-        const label = (f.title || f.name || '').trim();
-        if (!label) return null;
+      <g onMouseOver={handleOver} onClick={handleClick}>
+        {layout.sorted.map((f) => {
+          const k = KIND[f.kind];
+          const isPlot = f.kind === 'plot';
+          const isSel = isPlot && selected === f.name;
+          const dim = isPlot && matches && !matches.has(f.name);
 
-        const isRoad = f.kind === 'road';
-        const baseSize = Math.min(Math.max(f.ir * (isRoad ? 0.55 : 0.9), 1.2), isRoad ? 2.8 : 3.8);
-        const size = isRoad ? baseSize + ROAD_FONT_BOOST : baseSize;
-        if (size < 1.2) return null;
+          let fill = k.fill;
+          if (isPlot) {
+            /* Off-white unless the plot has a sale state AND the status
+               view is up. Nothing else colours a plot. */
+            const st = stateOf(status, f.name);
+            fill = (showStatus && st.fill) || PLAIN_FILL;
+          }
+          if (isSel) fill = SOCKET_FILL;   // the raised copy carries the real colour
 
-        const ink = KIND[f.kind].ink;
-        const [x, y] = f.lp;
+          return (
+            <Shape
+              key={f.i}
+              d={pathById[f.i]}
+              plotName={isPlot ? f.name : undefined}
+              fill={fill}
+              stroke={isSel ? '#E9C6F2' : k.stroke}
+              strokeWidth={isSel ? SEL_STROKE : PLOT_STROKE}
+              fillOpacity={dim ? DIM_FILL : 0.92}
+              strokeOpacity={dim ? DIM_EDGE : 1}
+              opacity={hover === f.name && isPlot ? 0.85 : 1}
+            />
+          );
+        })}
+      </g>
 
-        return (
-          <g
-            key={`l${f.i}`} style={{ pointerEvents: 'none' }} paintOrder="stroke"
-            stroke="rgba(0,0,0,0.45)" strokeWidth={size * 0.028}
-            transform={`rotate(${f.angle} ${x} ${y})`}
-          >
-            <text
-              x={x} y={isRoad ? y : y - size * 0.4} textAnchor="middle" dy="0.35em"
-              fontFamily={isRoad ? MAPFONT : SANS} fontSize={size}
-              letterSpacing={isRoad ? 0 : 0.5} fill={ink} fontWeight="600"
-            >
-              {label}
-            </text>
-            {!isRoad && f.area > 200 && (
-              <text
-                x={x} y={y + size * 0.85} textAnchor="middle" dy="0.35em"
-                fontFamily={MONO} fontSize={size * 0.62} fill={ink} opacity="0.85"
-              >
-                {Math.round(f.area).toLocaleString('en-IN')} m²
-              </text>
-            )}
-          </g>
-        );
-      })}
+      {showImages && <ImagesLayer spaces={spaces} />}
+
+      {showNumbers && (
+        <NumbersLayer
+          plots={layout.plots}
+          sizes={numberSizes}
+          selected={selected}
+          matches={matches}
+          status={status}
+          showStatus={showStatus}
+        />
+      )}
+
+      <FeatureLabels features={layout.features} />
     </g>
   );
 }
